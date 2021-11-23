@@ -165,9 +165,9 @@ class WebGLFrame {
             x = x * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
 
             for (let j = 0; j < VERTEX_COUNT; j++) {
-                let y = j / VERTEX_COUNT;
-                y = y * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
-                this.position.push(x, y, 0.0);
+                let z = j / VERTEX_COUNT;
+                z = z * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
+                this.position.push(x, 0.0, z);
                 this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
             }
         }
