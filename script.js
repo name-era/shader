@@ -158,16 +158,18 @@ class WebGLFrame {
         this.color = [];
 
         const VERTEX_COUNT = 100;
-        const VERTEX_WIDTH = 2.0;
+        const VERTEX_RADIUS = 1.0;
 
-        for (let i = 0; i <= VERTEX_COUNT; ++i) {
-            let x = i / VERTEX_COUNT;
-            x = x * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
+        for (let i = 0; i < VERTEX_COUNT; ++i) {
+            const iRad = i / VERTEX_COUNT * Math.PI * 2.0;
 
             for (let j = 0; j < VERTEX_COUNT; j++) {
-                let z = j / VERTEX_COUNT;
-                z = z * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
-                this.position.push(x, 0.0, z);
+                const jRad = j / VERTEX_COUNT * Math.PI * 2.0;
+
+                let x = VERTEX_RADIUS * Math.cos(iRad) * Math.cos(jRad);
+                let y = VERTEX_RADIUS * Math.cos(iRad) * Math.sin(jRad);
+                let z = VERTEX_RADIUS * Math.sin(iRad);
+                this.position.push(x, y, z);
                 this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
             }
         }
@@ -177,7 +179,7 @@ class WebGLFrame {
             this.createVbo(this.color),
         ]
 
-        gl.clearColor(0.4, 0.4, 0.4, 1.0);
+        gl.clearColor(0.1, 0.1, 0.1, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
 
@@ -215,9 +217,9 @@ class WebGLFrame {
 
         this.setAttribute(this.vbo, this.attLocation, this.attStride);
 
-        const cameraPosition = [0.0, 0.0, 3.0];
+        const cameraPosition = [0.0, 3.0, 0.0];
         const centerPoint = [0.0, 0.0, 0.0];
-        const cameraUpDirection = [0.0, 1.0, 0.0];
+        const cameraUpDirection = [0.0, 0.0, 1.0];
         const fovy = 60 * this.camera.scale * Math.PI / 180.0;　//Field of view Y
         const aspect = this.canvas.width / this.canvas.height;
         const near = 0.1;
