@@ -139,6 +139,7 @@ class WebGLFrame {
     }
 
     setUp() {
+
         const gl = this.gl;
 
         this.mouseX = 0;
@@ -157,11 +158,12 @@ class WebGLFrame {
         this.position = [];
         this.color = [];
 
-        const VERTEX_COUNT = 100;
-        const VERTEX_RADIUS = 1.0;
+        const VERTEX_COUNT = 80;
+        const VERTEX_RADIUS = 1;
 
         for (let i = 0; i < VERTEX_COUNT; ++i) {
-            const iRad = i / VERTEX_COUNT * Math.PI * 2.0;
+
+            const iRad = i / VERTEX_COUNT * Math.PI * 1.1;
 
             for (let j = 0; j < VERTEX_COUNT; j++) {
                 const jRad = j / VERTEX_COUNT * Math.PI * 2.0;
@@ -174,12 +176,55 @@ class WebGLFrame {
             }
         }
 
+        const INNER_VERTEX_RADIUS = 0.95;
+
+        for (let i = 0; i < VERTEX_COUNT; ++i) {
+            const iRad = i / VERTEX_COUNT * Math.PI * 1.1;
+
+            for (let j = 0; j < VERTEX_COUNT; j++) {
+                const jRad = j / VERTEX_COUNT * Math.PI * 2.0;
+
+                let x = INNER_VERTEX_RADIUS * Math.cos(iRad) * Math.cos(jRad);
+                let y = INNER_VERTEX_RADIUS * Math.cos(iRad) * Math.sin(jRad);
+                let z = INNER_VERTEX_RADIUS * Math.sin(iRad);
+                this.position.push(x, y, z);
+                this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
+            }
+        }
+
+        const FOLDS_VERTEX_COUNT = 50;
+        const FOLDS_COUNT = 20;
+        const FOLDS_NUM = 3;
+        const RADIUS = 0.7;
+
+        for (let k = 0; k < FOLDS_NUM; k++) {
+            for (let i = 0; i <= FOLDS_COUNT; i++) {
+                const iRad = i / FOLDS_COUNT * Math.PI * 2;
+
+                for (let j = 0; j < FOLDS_VERTEX_COUNT; ++j) {
+                    let r = RADIUS + k * 0.1;
+                    let x = r * Math.sin(iRad + r);
+                    let y = r * Math.cos(iRad + r);
+                    let z = -j / FOLDS_VERTEX_COUNT * 2;
+
+                    this.position.push(x, y, z);
+                    this.color.push(1.0, 1.0, 1.0, 1.0);
+                }
+            }
+        }
+
+
+
+
+
         this.vbo = [
             this.createVbo(this.position),
             this.createVbo(this.color),
         ]
 
-        gl.clearColor(0.1, 0.1, 0.1, 1.0);
+
+
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
 
@@ -204,6 +249,10 @@ class WebGLFrame {
 
         if (this.running === true) {
             requestAnimationFrame(this.render);
+        }
+
+        if (this.nowTime > 14) {
+            this.beginTime = Date.now();
         }
 
         this.nowTime = (Date.now() - this.beginTime) / 1000;
@@ -232,7 +281,7 @@ class WebGLFrame {
         glMatrix.mat4.perspective(this.pMatrix, fovy, aspect, near, far);
         glMatrix.mat4.multiply(this.vpMatrix, this.pMatrix, this.vMatrix);
 
-        this.camera.update();
+        //this.camera.update();
         let quaternionMatrix = glMatrix.mat4.create();
         glMatrix.mat4.fromQuat(quaternionMatrix, this.camera.qtn);
 
@@ -289,7 +338,7 @@ class InteractionCamera {
         this.prevMouse = [0, 0];
         this.rotationScale = Math.min(window.innerWidth, window.innerHeight);
         this.rotation = 0.0;
-        this.rotateAxis = [0.0, 0.0, 0.0];
+        this.rotateAxis = [0.0, 0.0, 1.0];
         this.rotatePower = 2.0;
         this.rotateAttenuation = 0.9;
         this.scale = 1.0;
@@ -313,8 +362,8 @@ class InteractionCamera {
         const x = this.prevMouse[0] - eve.clientX;
         const y = this.prevMouse[1] - eve.clientY;
         this.rotation = Math.sqrt(x * x + y * y) / this.rotationScale * this.rotatePower;
-        this.rotateAxis[0] = y;
-        this.rotateAxis[1] = x;
+        // this.rotateAxis[0] = y;
+        // this.rotateAxis[1] = x;
         this.prevMouse = [eve.clientX, eve.clientY];
     }
 
@@ -337,6 +386,7 @@ class InteractionCamera {
         this.scale = Math.max(this.scaleMin, Math.min(this.scaleMax, this.scale + this.scalePower));
         if (this.rotation === 0.0) { return; }
         this.rotation *= this.rotateAttenuation;
+
 
         glMatrix.vec3.normalize(this.rotateAxis, this.rotateAxis);
         const q = glMatrix.quat.create();
