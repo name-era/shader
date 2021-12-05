@@ -1,4 +1,15 @@
+let isFace = false;
+
 window.addEventListener('DOMContentLoaded', () => {
+
+    const PANE = new Tweakpane({
+        container: document.querySelector('#pane'),
+    });
+    PANE.addInput({ face: isFace }, 'face')
+        .on('change', (v) => {
+            isFace = v;
+        });
+
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
     webgl.load().then(() => {
@@ -70,10 +81,12 @@ class WebGLFrame {
                     this.program = this.createProgram(vs, fs);
 
                     this.attLocation = [
-                        gl.getAttribLocation(this.program, 'position'),
+                        gl.getAttribLocation(this.program, 'planePosition'),  
+                        gl.getAttribLocation(this.program, 'spherePosition'), 
                         gl.getAttribLocation(this.program, 'color'),
                     ];
                     this.attStride = [
+                        3,
                         3,
                         4,
                     ];
@@ -155,74 +168,59 @@ class WebGLFrame {
         this.canvas.addEventListener('mouseup', this.camera.endEvent, false);
         this.canvas.addEventListener('wheel', this.camera.wheelEvent, false);
 
-        this.position = [];
-        this.color = [];
-
-        const VERTEX_COUNT = 80;
+        const VERTEX_COUNT = 100;
+        const VERTEX_WIDTH  = 2.5;
         const VERTEX_RADIUS = 1;
 
-        for (let i = 0; i < VERTEX_COUNT; ++i) {
+        this.planePosition = [];   // 頂点座標（平面）
+        this.spherePosition = [];  // 頂点座標（球体）
+        this.color = [];           // 頂点色
+        this.index = [];           // 頂点インデックス
 
-            const iRad = i / VERTEX_COUNT * Math.PI * 1.1;
+        for (let i = 0; i <= VERTEX_COUNT; ++i) {
 
-            for (let j = 0; j < VERTEX_COUNT; j++) {
-                const jRad = j / VERTEX_COUNT * Math.PI * 2.0;
+            const px = (i / VERTEX_COUNT) * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
+            const iRad = (i / VERTEX_COUNT) * Math.PI * 2.0;
 
-                let x = VERTEX_RADIUS * Math.cos(iRad) * Math.cos(jRad);
-                let y = VERTEX_RADIUS * Math.cos(iRad) * Math.sin(jRad);
-                let z = VERTEX_RADIUS * Math.sin(iRad);
-                this.position.push(x, y, z);
+            const x = Math.sin(iRad);
+            const z = Math.cos(iRad);
+
+            for (let j = 0; j <= VERTEX_COUNT; ++j) {
+
+                const py = (j / VERTEX_COUNT) * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
+
+                const jRad = j / VERTEX_COUNT * Math.PI;
+                const radius = Math.sin(-jRad);
+                const y = Math.cos(jRad);
+
+                this.planePosition.push(px, py, 0.0);
+
+                this.spherePosition.push(
+                    x * VERTEX_RADIUS * radius,
+                    -y * VERTEX_RADIUS,
+                    z * VERTEX_RADIUS * radius,
+                );
                 this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
-            }
-        }
 
-        const INNER_VERTEX_RADIUS = 0.95;
-
-        for (let i = 0; i < VERTEX_COUNT; ++i) {
-            const iRad = i / VERTEX_COUNT * Math.PI * 1.1;
-
-            for (let j = 0; j < VERTEX_COUNT; j++) {
-                const jRad = j / VERTEX_COUNT * Math.PI * 2.0;
-
-                let x = INNER_VERTEX_RADIUS * Math.cos(iRad) * Math.cos(jRad);
-                let y = INNER_VERTEX_RADIUS * Math.cos(iRad) * Math.sin(jRad);
-                let z = INNER_VERTEX_RADIUS * Math.sin(iRad);
-                this.position.push(x, y, z);
-                this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
-            }
-        }
-
-        const FOLDS_VERTEX_COUNT = 50;
-        const FOLDS_COUNT = 20;
-        const FOLDS_NUM = 3;
-        const RADIUS = 0.7;
-
-        for (let k = 0; k < FOLDS_NUM; k++) {
-            for (let i = 0; i <= FOLDS_COUNT; i++) {
-                const iRad = i / FOLDS_COUNT * Math.PI * 2;
-
-                for (let j = 0; j < FOLDS_VERTEX_COUNT; ++j) {
-                    let r = RADIUS + k * 0.1;
-                    let x = r * Math.sin(iRad + r);
-                    let y = r * Math.cos(iRad + r);
-                    let z = -j / FOLDS_VERTEX_COUNT * 2;
-
-                    this.position.push(x, y, z);
-                    this.color.push(1.0, 1.0, 1.0, 1.0);
+                if (i > 0 && j > 0) {
+                    const firstColumn = (i - 1) * (VERTEX_COUNT + 1) + j;
+                    const secondColumn = i * (VERTEX_COUNT + 1) + j;
+                    this.index.push(
+                        firstColumn - 1, firstColumn, secondColumn - 1,
+                        secondColumn - 1, firstColumn, secondColumn,
+                    );
                 }
+
             }
         }
-
-
-
-
 
         this.vbo = [
-            this.createVbo(this.position),
+            this.createVbo(this.planePosition),
+            this.createVbo(this.spherePosition),
             this.createVbo(this.color),
         ]
 
-
+        this.ibo = this.createIbo(this.index);
 
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
@@ -242,6 +240,33 @@ class WebGLFrame {
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
         return vbo;
+    }
+
+    createIbo(data) {
+        if (this.gl == null) {
+            throw new Error('webgl not initialized');
+        }
+        const gl = this.gl;
+        const ibo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        return ibo;
+    }
+
+    createIboInt(data) {
+        if (this.gl == null) {
+            throw new Error('webgl not initialized');
+        }
+        const gl = this.gl;
+        if (ext == null || ext.elementIndexUint == null) {
+            throw new Error('element index Uint not supported');
+        }
+        const ibo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(data), gl.STATIC_DRAW);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        return ibo;
     }
 
     render() {
@@ -264,11 +289,11 @@ class WebGLFrame {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.useProgram(this.program);
 
-        this.setAttribute(this.vbo, this.attLocation, this.attStride);
+        this.setAttribute(this.vbo, this.attLocation, this.attStride, this.ibo);
 
-        const cameraPosition = [0.0, 3.0, 0.0];
+        const cameraPosition = [0.0, 0.0, 3.0];
         const centerPoint = [0.0, 0.0, 0.0];
-        const cameraUpDirection = [0.0, 0.0, 1.0];
+        const cameraUpDirection = [0.0, 1.0, 0.0];
         const fovy = 60 * this.camera.scale * Math.PI / 180.0;　//Field of view Y
         const aspect = this.canvas.width / this.canvas.height;
         const near = 0.1;
@@ -281,7 +306,7 @@ class WebGLFrame {
         glMatrix.mat4.perspective(this.pMatrix, fovy, aspect, near, far);
         glMatrix.mat4.multiply(this.vpMatrix, this.pMatrix, this.vMatrix);
 
-        //this.camera.update();
+        this.camera.update();
         let quaternionMatrix = glMatrix.mat4.create();
         glMatrix.mat4.fromQuat(quaternionMatrix, this.camera.qtn);
 
@@ -293,7 +318,11 @@ class WebGLFrame {
             this.nowTime,
         ], this.uniLocation, this.uniType);
 
-        gl.drawArrays(gl.POINTS, 0, this.position.length / 3);
+        if (isFace === true) {
+            gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
+        } else {
+            gl.drawArrays(gl.POINTS, 0, this.planePosition.length / 3);
+        }
     }
 
     setAttribute(vbo, attL, attS, ibo) {
@@ -338,7 +367,7 @@ class InteractionCamera {
         this.prevMouse = [0, 0];
         this.rotationScale = Math.min(window.innerWidth, window.innerHeight);
         this.rotation = 0.0;
-        this.rotateAxis = [0.0, 0.0, 1.0];
+        this.rotateAxis = [0.0, 0.0, 0.0];
         this.rotatePower = 2.0;
         this.rotateAttenuation = 0.9;
         this.scale = 1.0;
@@ -362,8 +391,8 @@ class InteractionCamera {
         const x = this.prevMouse[0] - eve.clientX;
         const y = this.prevMouse[1] - eve.clientY;
         this.rotation = Math.sqrt(x * x + y * y) / this.rotationScale * this.rotatePower;
-        // this.rotateAxis[0] = y;
-        // this.rotateAxis[1] = x;
+        this.rotateAxis[0] = y;
+        this.rotateAxis[1] = x;
         this.prevMouse = [eve.clientX, eve.clientY];
     }
 
