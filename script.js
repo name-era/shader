@@ -1,4 +1,5 @@
 let isFace = false;
+let mixRatio = 0.0;
 
 window.addEventListener('DOMContentLoaded', () => {
 
@@ -9,6 +10,13 @@ window.addEventListener('DOMContentLoaded', () => {
         .on('change', (v) => {
             isFace = v;
         });
+    PANE.addInput({ ratio: mixRatio }, 'ratio', {
+        step: 0.01,
+        min: 0.0,
+        max: 1.0,
+    }).on('change', (v) => {
+        mixRatio = v;
+    });
 
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
@@ -36,7 +44,7 @@ class WebGLFrame {
         this.vpMatrix = glMatrix.mat4.create();
         this.mvpMatrix = glMatrix.mat4.create();
 
-        this.texture = null;
+        this.texture = [];
 
     }
 
@@ -97,22 +105,32 @@ class WebGLFrame {
                     this.uniLocation = [
                         gl.getUniformLocation(this.program, 'mvpMatrix'),
                         gl.getUniformLocation(this.program, 'time'),
-                        gl.getUniformLocation(this.program, 'textureUnit'),
+                        gl.getUniformLocation(this.program, 'ratio'),
+                        gl.getUniformLocation(this.program, 'textureUnit0'),
+                        gl.getUniformLocation(this.program, 'textureUnit1'),
                     ];
                     this.uniType = [
                         'uniformMatrix4fv',
                         'uniform1f',
+                        'uniform1f',
+                        'uniform1i',
                         'uniform1i',
                     ];
 
-                    return this.createTextureFromFile('./image.png');
+                    return this.createTextureFromFile('./image1.jpg');
+                })
+                .then((texture) => {
+                    this.texture[0] = texture;
+                    return this.createTextureFromFile('./image2.jpg');
                 })
                 .then((texture) => {
                     const gl = this.gl;
-                    this.texture = texture;
-                    //アクティブなテクスチャを0番目に指定
-                    gl.activeTexture(gl.TEXTURE0);
-                    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+                    this.texture[1] = texture;
+
+                    this.texture.forEach((v, index) => {
+                        gl.activeTexture(gl.TEXTURE0 + index);
+                        gl.bindTexture(gl.TEXTURE_2D, v);
+                    })
                     resolve();
                 });
         });
@@ -333,7 +351,9 @@ class WebGLFrame {
         this.setUniform([
             this.mvpMatrix,
             this.nowTime,
-            0, //テクスチャ番号
+            mixRatio,
+            0, 
+            1,
         ], this.uniLocation, this.uniType);
 
         if (isFace === true) {
@@ -390,6 +410,7 @@ class WebGLFrame {
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
                 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                //事故を防ぐためにバインドしないでおく
                 gl.bindTexture(gl.TEXTURE_2D, null);
                 resolve(tex);
             }, false);
