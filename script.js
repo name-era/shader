@@ -36,6 +36,8 @@ class WebGLFrame {
         this.vpMatrix = glMatrix.mat4.create();
         this.mvpMatrix = glMatrix.mat4.create();
 
+        this.texture = null;
+
     }
 
     //初期化
@@ -81,27 +83,39 @@ class WebGLFrame {
                     this.program = this.createProgram(vs, fs);
 
                     this.attLocation = [
-                        gl.getAttribLocation(this.program, 'planePosition'),  
-                        gl.getAttribLocation(this.program, 'spherePosition'), 
+                        gl.getAttribLocation(this.program, 'planePosition'),
+                        gl.getAttribLocation(this.program, 'spherePosition'),
                         gl.getAttribLocation(this.program, 'color'),
+                        gl.getAttribLocation(this.program, 'texCoord'),
                     ];
                     this.attStride = [
                         3,
                         3,
                         4,
+                        2,
                     ];
                     this.uniLocation = [
                         gl.getUniformLocation(this.program, 'mvpMatrix'),
                         gl.getUniformLocation(this.program, 'time'),
+                        gl.getUniformLocation(this.program, 'textureUnit'),
                     ];
                     this.uniType = [
                         'uniformMatrix4fv',
                         'uniform1f',
+                        'uniform1i',
                     ];
 
-                    resolve();
+                    return this.createTextureFromFile('./image.png');
                 })
-        })
+                .then((texture) => {
+                    const gl = this.gl;
+                    this.texture = texture;
+                    //アクティブなテクスチャを0番目に指定
+                    gl.activeTexture(gl.TEXTURE0);
+                    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+                    resolve();
+                });
+        });
     }
 
     loadShadedr(pathArray) {
@@ -169,12 +183,13 @@ class WebGLFrame {
         this.canvas.addEventListener('wheel', this.camera.wheelEvent, false);
 
         const VERTEX_COUNT = 100;
-        const VERTEX_WIDTH  = 2.5;
+        const VERTEX_WIDTH = 2.5;
         const VERTEX_RADIUS = 1;
 
         this.planePosition = [];   // 頂点座標（平面）
         this.spherePosition = [];  // 頂点座標（球体）
         this.color = [];           // 頂点色
+        this.texChoord = [];       // テクスチャ座標 
         this.index = [];           // 頂点インデックス
 
         for (let i = 0; i <= VERTEX_COUNT; ++i) {
@@ -201,6 +216,7 @@ class WebGLFrame {
                     z * VERTEX_RADIUS * radius,
                 );
                 this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
+                this.texChoord.push(i / VERTEX_COUNT, 1.0 - j / VERTEX_COUNT);
 
                 if (i > 0 && j > 0) {
                     const firstColumn = (i - 1) * (VERTEX_COUNT + 1) + j;
@@ -218,6 +234,7 @@ class WebGLFrame {
             this.createVbo(this.planePosition),
             this.createVbo(this.spherePosition),
             this.createVbo(this.color),
+            this.createVbo(this.texChoord),
         ]
 
         this.ibo = this.createIbo(this.index);
@@ -294,7 +311,7 @@ class WebGLFrame {
         const cameraPosition = [0.0, 0.0, 3.0];
         const centerPoint = [0.0, 0.0, 0.0];
         const cameraUpDirection = [0.0, 1.0, 0.0];
-        const fovy = 60 * this.camera.scale * Math.PI / 180.0;　//Field of view Y
+        const fovy = 60 * this.camera.scale * Math.PI / 180.0; //Field of view Y
         const aspect = this.canvas.width / this.canvas.height;
         const near = 0.1;
         const far = 10.0;
@@ -316,6 +333,7 @@ class WebGLFrame {
         this.setUniform([
             this.mvpMatrix,
             this.nowTime,
+            0, //テクスチャ番号
         ], this.uniLocation, this.uniType);
 
         if (isFace === true) {
@@ -354,6 +372,29 @@ class WebGLFrame {
                 gl[type](uniL[index], v);
             }
         });
+    }
+
+    createTextureFromFile(source) {
+        if (this.gl == null) {
+            throw new Error('webgl not initialized');
+        }
+        return new Promise((resolve) => {
+            const gl = this.gl;
+            const img = new Image();
+            img.addEventListener('load', () => {
+                const tex = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, tex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+                gl.generateMipmap(gl.TEXTURE_2D);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.bindTexture(gl.TEXTURE_2D, null);
+                resolve(tex);
+            }, false);
+            img.src = source;
+        })
     }
 
 
