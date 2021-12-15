@@ -1,5 +1,6 @@
 let isFace = false;
-let mixRatio = 0.0;
+let textureRatio = 0.0;
+let shapeRatio = 0.0;
 
 window.addEventListener('DOMContentLoaded', () => {
 
@@ -10,13 +11,21 @@ window.addEventListener('DOMContentLoaded', () => {
         .on('change', (v) => {
             isFace = v;
         });
-    PANE.addInput({ ratio: mixRatio }, 'ratio', {
+    PANE.addInput({ textureRatio: textureRatio }, 'textureRatio', {
         step: 0.01,
         min: 0.0,
         max: 1.0,
     }).on('change', (v) => {
-        mixRatio = v;
+        textureRatio = v;
     });
+    PANE.addInput({ shape: shapeRatio }, 'shape', {
+        step: 0.01,
+        min: 0.0,
+        max: 1.0,
+    }).on('change', (v) => {
+        shapeRatio = v;
+    });
+
 
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
@@ -104,15 +113,17 @@ class WebGLFrame {
                     ];
                     this.uniLocation = [
                         gl.getUniformLocation(this.program, 'mvpMatrix'),
-                        gl.getUniformLocation(this.program, 'time'),
-                        gl.getUniformLocation(this.program, 'ratio'),
+                        gl.getUniformLocation(this.program, 'shapeRatio'),
+                        gl.getUniformLocation(this.program, 'textureRatio'),
                         gl.getUniformLocation(this.program, 'textureUnit0'),
                         gl.getUniformLocation(this.program, 'textureUnit1'),
+                        gl.getUniformLocation(this.program, 'textureUnit2',)
                     ];
                     this.uniType = [
                         'uniformMatrix4fv',
                         'uniform1f',
                         'uniform1f',
+                        'uniform1i',
                         'uniform1i',
                         'uniform1i',
                     ];
@@ -124,8 +135,12 @@ class WebGLFrame {
                     return this.createTextureFromFile('./image2.jpg');
                 })
                 .then((texture) => {
-                    const gl = this.gl;
                     this.texture[1] = texture;
+                    return this.createTextureFromFile('./noise.png');
+                })
+                .then((texture) => {
+                    const gl = this.gl;
+                    this.texture[2] = texture;
 
                     this.texture.forEach((v, index) => {
                         gl.activeTexture(gl.TEXTURE0 + index);
@@ -350,10 +365,11 @@ class WebGLFrame {
 
         this.setUniform([
             this.mvpMatrix,
-            this.nowTime,
-            mixRatio,
-            0, 
+            shapeRatio,
+            textureRatio,
+            0,
             1,
+            2,
         ], this.uniLocation, this.uniType);
 
         if (isFace === true) {
