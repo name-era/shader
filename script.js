@@ -136,7 +136,7 @@ class WebGLFrame {
                 })
                 .then((texture) => {
                     this.texture[1] = texture;
-                    return this.createTextureFromFile('./noise.png');
+                    return this.createTextureFromFile('./noise.jpg');
                 })
                 .then((texture) => {
                     const gl = this.gl;
@@ -249,7 +249,8 @@ class WebGLFrame {
                     z * VERTEX_RADIUS * radius,
                 );
                 this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
-                this.texChoord.push(i / VERTEX_COUNT, 1.0 - j / VERTEX_COUNT);
+
+                this.texChoord.push(i / VERTEX_COUNT * 0.85 + 0.05, 1.0 - (j / VERTEX_COUNT * 0.85 + 0.05));
 
                 if (i > 0 && j > 0) {
                     const firstColumn = (i - 1) * (VERTEX_COUNT + 1) + j;

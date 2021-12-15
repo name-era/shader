@@ -10,7 +10,7 @@ varying vec2 vTexCoord;
 
 void main() {
 
-    vTexCoord=texCoord;
+    vTexCoord = texCoord;
     vec3 p = mix(planePosition, spherePosition, shapeRatio);
 
     gl_Position = mvpMatrix * vec4(p, 1.0);
