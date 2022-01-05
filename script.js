@@ -1,5 +1,10 @@
-let saturation = 1.0;
-let vignetteScale = 1.5;
+let noiseTypeOne = false;         // 乱数生成器がタイプ１かどうか
+let noiseStrength = 0.5;         // ノイズの合成強度
+let vignetteScale = 1.5;         // ヴィネット係数
+let sinWave = 300.0;             // サイン波の周波数係数 @@@
+let sinStrength = 0.5;           // サイン波の合成強度 @@@
+let backgroundColor = '#00ff00'; // 背景色 @@@
+let backgroundColorFloat = [0.0, 1.0, 0.0];
 
 window.addEventListener('DOMContentLoaded', () => {
 
@@ -7,17 +12,44 @@ window.addEventListener('DOMContentLoaded', () => {
         container: document.querySelector('#pane'),
     });
 
-    PANE.addInput({ saturation: saturation }, 'saturation', {
-        step: 0.01,
-        min: 0.0,
-        max: 1.0,
-    }).on('change', (v) => { saturation = v; });
+    PANE.addInput({'use type1': noiseTypeOne}, 'use type1')
+    .on('change', (v) => {noiseTypeOne = v;});
 
-    PANE.addInput({ vignette: vignetteScale }, 'vignette', {
+    PANE.addInput({'noise strength': noiseStrength}, 'noise strength', {
         step: 0.01,
         min: 0.0,
         max: 1.0,
-    }).on('change', (v) => { vignetteScale = v; });
+    }).on('change', (v) => {noiseStrength = v;});
+
+    PANE.addInput({'vignette': vignetteScale}, 'vignette', {
+        step: 0.01,
+        min: 0.0,
+        max: 2.0,
+    }).on('change', (v) => {vignetteScale = v;});
+
+    PANE.addInput({'sin wave': sinWave}, 'sin wave', {
+        step: 1.0,
+        min: 1.0,
+        max: 1000.0,
+    }).on('change', (v) => {sinWave = v;});
+
+    PANE.addInput({'sin strength': sinStrength}, 'sin strength', {
+        step: 0.01,
+        min: 0.0,
+        max: 1.0,
+    }).on('change', (v) => {sinStrength = v;});
+
+    PANE.addInput({'background': backgroundColor}, 'background')
+    .on('change', (v) => {
+        backgroundColor = v;
+        const rgb = HEX2RGB(v);
+        if(rgb != null){
+            const r = rgb.r / 255;
+            const g = rgb.g / 255;
+            const b = rgb.b / 255;
+            backgroundColorFloat = [r, g, b];
+        }
+    });
 
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
@@ -135,13 +167,23 @@ class WebGLFrame {
                     ];
                     this.postUniLocation = [
                         gl.getUniformLocation(this.postProgram, 'textureUnit'),
-                        gl.getUniformLocation(this.postProgram, 'saturation'),
-                        gl.getUniformLocation(this.postProgram, 'vignette'),
+                        gl.getUniformLocation(this.postProgram, 'noiseTypeOne'),  // ノイズのタイプ１かどうか
+                        gl.getUniformLocation(this.postProgram, 'noiseStrength'), // ノイズの合成強度
+                        gl.getUniformLocation(this.postProgram, 'vignetteScale'), // ヴィネット係数
+                        gl.getUniformLocation(this.postProgram, 'sinWave'),       // サイン波の周波数係数 @@@
+                        gl.getUniformLocation(this.postProgram, 'sinStrength'),   // サイン波の合成強度 @@@
+                        gl.getUniformLocation(this.postProgram, 'time'),
+                        gl.getUniformLocation(this.postProgram, 'background'), 
                     ];
                     this.postUniType = [
                         'uniform1i',
+                        'uniform1i',
                         'uniform1f',
                         'uniform1f',
+                        'uniform1f',
+                        'uniform1f',
+                        'uniform1f',
+                        'uniform3fv',
                     ];
                     return this.createTextureFromFile('./image1.jpg');
                 })
@@ -254,7 +296,7 @@ class WebGLFrame {
         this.framebuffer[0] = this.createFramebuffer(this.canvas.width, this.canvas.height);
 
         gl.activeTexture(gl.TEXTURE0);
-        gl.clearColor(0.1, 0.1, 0.1, 1.0);
+        gl.clearColor(0.5, 0.5, 0.5, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
 
@@ -365,8 +407,13 @@ class WebGLFrame {
 
         this.setUniform([
             0,
-            saturation,
-            vignetteScale,
+            noiseTypeOne,         
+            noiseStrength,        
+            vignetteScale,        
+            sinWave,              
+            sinStrength,         
+            this.nowTime,         
+            backgroundColorFloat, 
         ], this.postUniLocation, this.postUniType);
 
         gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
@@ -548,3 +595,12 @@ class InteractionCamera {
         glMatrix.quat.multiply(this.qtn, this.qtn, q);
     }
 }
+
+function HEX2RGB(hex){
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/ig.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
