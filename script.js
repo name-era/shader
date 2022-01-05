@@ -1,4 +1,5 @@
-let brightness = 1.0;
+let saturation = 1.0;
+let vignetteScale = 1.5;
 
 window.addEventListener('DOMContentLoaded', () => {
 
@@ -6,11 +7,17 @@ window.addEventListener('DOMContentLoaded', () => {
         container: document.querySelector('#pane'),
     });
 
-    PANE.addInput({ brightness: brightness }, 'brightness', {
+    PANE.addInput({ saturation: saturation }, 'saturation', {
         step: 0.01,
         min: 0.0,
         max: 1.0,
-    }).on('change', (v) => { brightness = v; });
+    }).on('change', (v) => { saturation = v; });
+
+    PANE.addInput({ vignette: vignetteScale }, 'vignette', {
+        step: 0.01,
+        min: 0.0,
+        max: 1.0,
+    }).on('change', (v) => { vignetteScale = v; });
 
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
@@ -128,10 +135,12 @@ class WebGLFrame {
                     ];
                     this.postUniLocation = [
                         gl.getUniformLocation(this.postProgram, 'textureUnit'),
-                        gl.getUniformLocation(this.postProgram, 'brightness'),
+                        gl.getUniformLocation(this.postProgram, 'saturation'),
+                        gl.getUniformLocation(this.postProgram, 'vignette'),
                     ];
                     this.postUniType = [
                         'uniform1i',
+                        'uniform1f',
                         'uniform1f',
                     ];
                     return this.createTextureFromFile('./image1.jpg');
@@ -356,7 +365,8 @@ class WebGLFrame {
 
         this.setUniform([
             0,
-            brightness,
+            saturation,
+            vignetteScale,
         ], this.postUniLocation, this.postUniType);
 
         gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
