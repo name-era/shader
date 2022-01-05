@@ -1,31 +1,16 @@
-let isFace = false;
-let textureRatio = 0.0;
-let shapeRatio = 0.0;
+let brightness = 1.0;
 
 window.addEventListener('DOMContentLoaded', () => {
 
     const PANE = new Tweakpane({
         container: document.querySelector('#pane'),
     });
-    PANE.addInput({ face: isFace }, 'face')
-        .on('change', (v) => {
-            isFace = v;
-        });
-    PANE.addInput({ textureRatio: textureRatio }, 'textureRatio', {
-        step: 0.01,
-        min: 0.0,
-        max: 1.0,
-    }).on('change', (v) => {
-        textureRatio = v;
-    });
-    PANE.addInput({ shape: shapeRatio }, 'shape', {
-        step: 0.01,
-        min: 0.0,
-        max: 1.0,
-    }).on('change', (v) => {
-        shapeRatio = v;
-    });
 
+    PANE.addInput({ brightness: brightness }, 'brightness', {
+        step: 0.01,
+        min: 0.0,
+        max: 1.0,
+    }).on('change', (v) => { brightness = v; });
 
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
@@ -54,7 +39,8 @@ class WebGLFrame {
         this.mvpMatrix = glMatrix.mat4.create();
 
         this.texture = [];
-
+        this.framebuffer = [];
+        this.deleteFunction = null;
     }
 
     //初期化
@@ -87,8 +73,14 @@ class WebGLFrame {
         this.uniLocation = null;
         this.uniType = null;
 
+        this.postProgram = null;
+        this.postAttLocation = null;
+        this.postAttStride = null;
+        this.postUniLocation = null;
+        this.postUniType = null;
+
         return new Promise((resolve) => {
-            this.loadShadedr([
+            this.loadShader([
                 './vs1.vert',
                 './fs1.frag',
             ])
@@ -100,58 +92,58 @@ class WebGLFrame {
                     this.program = this.createProgram(vs, fs);
 
                     this.attLocation = [
-                        gl.getAttribLocation(this.program, 'planePosition'),
-                        gl.getAttribLocation(this.program, 'spherePosition'),
-                        gl.getAttribLocation(this.program, 'color'),
+                        gl.getAttribLocation(this.program, 'position'),
                         gl.getAttribLocation(this.program, 'texCoord'),
                     ];
                     this.attStride = [
                         3,
-                        3,
-                        4,
                         2,
                     ];
                     this.uniLocation = [
                         gl.getUniformLocation(this.program, 'mvpMatrix'),
-                        gl.getUniformLocation(this.program, 'shapeRatio'),
-                        gl.getUniformLocation(this.program, 'textureRatio'),
-                        gl.getUniformLocation(this.program, 'textureUnit0'),
-                        gl.getUniformLocation(this.program, 'textureUnit1'),
-                        gl.getUniformLocation(this.program, 'textureUnit2',)
+                        gl.getUniformLocation(this.program, 'textureUnit'),
                     ];
                     this.uniType = [
                         'uniformMatrix4fv',
-                        'uniform1f',
-                        'uniform1f',
-                        'uniform1i',
-                        'uniform1i',
                         'uniform1i',
                     ];
 
+                    return this.loadShader([
+                        './vs2.vert',
+                        './fs2.frag',
+                    ]);
+                })
+                .then((shaders) => {
+                    const gl = this.gl;
+                    const vs = this.createShader(shaders[0], gl.VERTEX_SHADER);
+                    const fs = this.createShader(shaders[1], gl.FRAGMENT_SHADER);
+                    this.postProgram = this.createProgram(vs, fs);
+                    this.postAttLocation = [
+                        gl.getAttribLocation(this.postProgram, 'position'),
+                        gl.getAttribLocation(this.postProgram, 'texCoord'),
+                    ];
+                    this.postAttStride = [
+                        3,
+                        2,
+                    ];
+                    this.postUniLocation = [
+                        gl.getUniformLocation(this.postProgram, 'textureUnit'),
+                        gl.getUniformLocation(this.postProgram, 'brightness'),
+                    ];
+                    this.postUniType = [
+                        'uniform1i',
+                        'uniform1f',
+                    ];
                     return this.createTextureFromFile('./image1.jpg');
                 })
                 .then((texture) => {
                     this.texture[0] = texture;
-                    return this.createTextureFromFile('./image2.jpg');
-                })
-                .then((texture) => {
-                    this.texture[1] = texture;
-                    return this.createTextureFromFile('./noise.jpg');
-                })
-                .then((texture) => {
-                    const gl = this.gl;
-                    this.texture[2] = texture;
-
-                    this.texture.forEach((v, index) => {
-                        gl.activeTexture(gl.TEXTURE0 + index);
-                        gl.bindTexture(gl.TEXTURE_2D, v);
-                    })
                     resolve();
                 });
         });
     }
 
-    loadShadedr(pathArray) {
+    loadShader(pathArray) {
         if (Array.isArray(pathArray) != true) {
             throw new Error('invalid argument');
         }
@@ -202,8 +194,19 @@ class WebGLFrame {
 
         const gl = this.gl;
 
-        this.mouseX = 0;
-        this.mouseY = 0;
+        window.addEventListener('resize', () => {
+            // プロパティに「フレームバッファ削除・再生成」の処理を記述した関数を代入 @@@
+            this.deleteFunction = () => {
+                this.framebuffer.forEach((v, index) => {
+                    // フレームバッファを削除するメソッドを実行
+                    this.deleteFrameBuffer(v);
+                    // リサイズ後のサイズを取得して、再度フレームバッファを生成する
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight;
+                    this.framebuffer[index] = this.createFramebuffer(this.canvas.width, this.canvas.height);
+                });
+            };
+        }, false);
 
         window.addEventListener('keydown', (evt) => {
             this.running = evt.key !== 'Escape';
@@ -215,65 +218,34 @@ class WebGLFrame {
         this.canvas.addEventListener('mouseup', this.camera.endEvent, false);
         this.canvas.addEventListener('wheel', this.camera.wheelEvent, false);
 
-        const VERTEX_COUNT = 100;
-        const VERTEX_WIDTH = 2.5;
-        const VERTEX_RADIUS = 1;
+        this.position = [
+            -1.0, 1.0, 0.0,
+            1.0, 1.0, 0.0,
+            -1.0, -1.0, 0.0,
+            1.0, -1.0, 0.0,
+        ];
+        this.texCoord = [
+            0.0, 0.0,
+            1.0, 0.0,
+            0.0, 1.0,
+            1.0, 1.0,
+        ];
 
-        this.planePosition = [];   // 頂点座標（平面）
-        this.spherePosition = [];  // 頂点座標（球体）
-        this.color = [];           // 頂点色
-        this.texChoord = [];       // テクスチャ座標 
-        this.index = [];           // 頂点インデックス
-
-        for (let i = 0; i <= VERTEX_COUNT; ++i) {
-
-            const px = (i / VERTEX_COUNT) * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
-            const iRad = (i / VERTEX_COUNT) * Math.PI * 2.0;
-
-            const x = Math.sin(iRad);
-            const z = Math.cos(iRad);
-
-            for (let j = 0; j <= VERTEX_COUNT; ++j) {
-
-                const py = (j / VERTEX_COUNT) * VERTEX_WIDTH - (VERTEX_WIDTH / 2.0);
-
-                const jRad = j / VERTEX_COUNT * Math.PI;
-                const radius = Math.sin(-jRad);
-                const y = Math.cos(jRad);
-
-                this.planePosition.push(px, py, 0.0);
-
-                this.spherePosition.push(
-                    x * VERTEX_RADIUS * radius,
-                    -y * VERTEX_RADIUS,
-                    z * VERTEX_RADIUS * radius,
-                );
-                this.color.push(i / VERTEX_COUNT, j / VERTEX_COUNT, 0.5, 1.0);
-
-                this.texChoord.push(i / VERTEX_COUNT * 0.85 + 0.05, 1.0 - (j / VERTEX_COUNT * 0.85 + 0.05));
-
-                if (i > 0 && j > 0) {
-                    const firstColumn = (i - 1) * (VERTEX_COUNT + 1) + j;
-                    const secondColumn = i * (VERTEX_COUNT + 1) + j;
-                    this.index.push(
-                        firstColumn - 1, firstColumn, secondColumn - 1,
-                        secondColumn - 1, firstColumn, secondColumn,
-                    );
-                }
-
-            }
-        }
+        this.index = [0, 2, 1, 1, 2, 3];
 
         this.vbo = [
-            this.createVbo(this.planePosition),
-            this.createVbo(this.spherePosition),
-            this.createVbo(this.color),
-            this.createVbo(this.texChoord),
+            this.createVbo(this.position),
+            this.createVbo(this.texCoord),
         ]
 
         this.ibo = this.createIbo(this.index);
 
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.framebuffer[0] = this.createFramebuffer(this.canvas.width, this.canvas.height);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.clearColor(0.1, 0.1, 0.1, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
 
@@ -325,22 +297,16 @@ class WebGLFrame {
 
         if (this.running === true) {
             requestAnimationFrame(this.render);
-        }
-
-        if (this.nowTime > 14) {
-            this.beginTime = Date.now();
+            if (this.deleteFunction != null) {
+                this.deleteFunction();
+                // 実行後に null を入れておく
+                this.deleteFunction = null;
+            }
         }
 
         this.nowTime = (Date.now() - this.beginTime) / 1000;
-
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
-
-        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.useProgram(this.program);
-
-        this.setAttribute(this.vbo, this.attLocation, this.attStride, this.ibo);
 
         const cameraPosition = [0.0, 0.0, 3.0];
         const centerPoint = [0.0, 0.0, 0.0];
@@ -364,20 +330,36 @@ class WebGLFrame {
         glMatrix.mat4.multiply(this.vpMatrix, this.vpMatrix, quaternionMatrix);
         this.mvpMatrix = this.vpMatrix;
 
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer[0].framebuffer);
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        gl.bindTexture(gl.TEXTURE_2D, this.texture[0]);
+        gl.useProgram(this.program);
+
+        this.setAttribute(this.vbo, this.attLocation, this.attStride, this.ibo);
+
         this.setUniform([
             this.mvpMatrix,
-            shapeRatio,
-            textureRatio,
             0,
-            1,
-            2,
         ], this.uniLocation, this.uniType);
 
-        if (isFace === true) {
-            gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
-        } else {
-            gl.drawArrays(gl.POINTS, 0, this.planePosition.length / 3);
-        }
+        gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.bindTexture(gl.TEXTURE_2D, this.framebuffer[0].texture);
+        gl.useProgram(this.postProgram);
+
+        this.setAttribute(this.vbo, this.postAttLocation, this.postAttStride, this.ibo);
+
+        this.setUniform([
+            0,
+            brightness,
+        ], this.postUniLocation, this.postUniType);
+
+        gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
     }
 
     setAttribute(vbo, attL, attS, ibo) {
@@ -434,8 +416,60 @@ class WebGLFrame {
             img.src = source;
         })
     }
+    createFramebuffer(width, height) {
+        if (this.gl == null) {
+            throw new Error('webgl not initialized');
+        }
+        const gl = this.gl;
+        //空のフレームバッファ
+        const framebuffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
 
+        //汎用バッファを用いて深度バッファを作成する
+        const depthRenderBuffer = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, depthRenderBuffer);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+        //フレームバッファと深度バッファの関連付け
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRenderBuffer);
 
+        //カラーバッファ（色を焼きこむ対象）
+        const fTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, fTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        //色用のバッファとして関連付ける
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fTexture, 0);
+
+        //unbind
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        return { framebuffer: framebuffer, renderbuffer: depthRenderBuffer, texture: fTexture };
+    }
+
+    deleteFrameBuffer(obj) {
+        if (this.gl == null || obj == null) { return; }
+        const gl = this.gl;
+        if (obj.hasOwnProperty('framebuffer') === true && this.gl.isFramebuffer(obj.framebuffer) === true) {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.deleteFramebuffer(obj.framebuffer);
+            obj.framebuffer = null;
+        }
+        if (obj.hasOwnProperty('renderbuffer') === true && gl.isRenderbuffer(obj.renderbuffer) === true) {
+            gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+            gl.deleteRenderbuffer(obj.renderbuffer);
+            obj.renderbuffer = null;
+        }
+        if (obj.hasOwnProperty('texture') === true && gl.isTexture(obj.texture) === true) {
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            gl.deleteTexture(obj.texture);
+            obj.texture = null;
+        }
+        obj = null;
+    }
 
 }
 
