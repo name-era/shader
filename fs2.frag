@@ -1,13 +1,14 @@
 precision mediump float;
-uniform sampler2D textureUnit;
-uniform bool noiseTypeOne;  // 乱数生成のタイプ１かどうか
-uniform float noiseStrength; // ノイズの合成強度
-uniform float vignetteScale; // ヴィネット係数
-uniform float sinWave;       // サイン波の周波数係数 @@@
-uniform float sinStrength;   // サイン波の合成強度 @@@
-uniform float time;          // 時間の経過 @@@
-uniform vec3 background;    // 背景色 @@@
-varying vec2 vTexCoord;
+uniform sampler2D renderedTexture; 
+uniform sampler2D noiseTexture;    
+uniform float     time;            
+uniform float     timeScale;       
+uniform float     distortionScale; 
+uniform bool      polar;           
+uniform bool      noiseVisible;    
+varying vec2      vTexCoord;
+
+const float PI = 3.1415926;
 
 //乱数生成1
 float rnd(vec2 p) {
@@ -25,22 +26,23 @@ float rnd2(vec2 n) {
 }
 
 void main() {
-    vec4 samplerColor = texture2D(textureUnit, vTexCoord);
-    float gray = dot(vec3(1.0), samplerColor.rgb) / 3.0;
+    vec2 coord = fract(vTexCoord - vec2(0.0, time * timeScale));
 
-    vec2 v = vTexCoord * 2.0 - 1.0;
-    float vig = vignetteScale - length(v);
-    float wave = sin(v.y * sinWave + time * 5.0);
-    //値を0～1に修正
-    wave = (wave + 1.0) * 0.5;
-    wave = 1.0 - wave * sinStrength;
-
-    //ホワイトノイズの生成
-    float n = rnd(gl_FragCoord.st + time * 0.001);
-    if(noiseTypeOne != true) {
-        n = rnd2(gl_FragCoord.st + time * 0.01);
+    if(polar == true){
+        vec2 originCenter = vTexCoord * 2.0 - 1.0;
+        //atanは-π～π
+        float s = (atan(originCenter.y, originCenter.x) + PI) / (PI * 2.0);
+        float t = length(originCenter);
+        coord = vec2(s, fract(t - time * timeScale));
     }
 
-    n = 1.0 - n * noiseStrength;
-    gl_FragColor = vec4(background * gray * vig * wave * n, 1.0);
+    vec4 noiseColor = texture2D(noiseTexture, coord);
+    vec2 noiseCoord = (noiseColor.rg * 2.0 - 1.0) * distortionScale;
+    vec4 samplerColor = texture2D(renderedTexture, vTexCoord + noiseCoord);
+
+    if(noiseVisible == true){
+        samplerColor += vec4(noiseColor.rgb, 0.0);
+    }
+
+    gl_FragColor = samplerColor;
 }
