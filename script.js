@@ -1,7 +1,10 @@
-let timeScale = 0.05;
-let distortionScale = 0.1;
-let polar = false;
-let noiseVisible = false;
+let noiseTypeOne = false;         // 乱数生成器がタイプ１かどうか
+let noiseStrength = 0.5;         // ノイズの合成強度
+let vignetteScale = 1.5;         // ヴィネット係数
+let sinWave = 300.0;             // サイン波の周波数係数 @@@
+let sinStrength = 0.5;           // サイン波の合成強度 @@@
+let backgroundColor = '#00ff00'; // 背景色 @@@
+let backgroundColorFloat = [0.1, 1.0, .035];
 
 window.addEventListener('DOMContentLoaded', () => {
 
@@ -9,19 +12,44 @@ window.addEventListener('DOMContentLoaded', () => {
         container: document.querySelector('#pane'),
     });
 
-    PANE.addInput({ 'time scale': timeScale }, 'time scale', {
-        step: 0.001,
-        min: 0.0,
-        max: 0.1,
-    }).on('change', (v) => { timeScale = v; });
-    PANE.addInput({ 'distortion scale': distortionScale }, 'distortion scale', {
-        step: 0.001,
-        min: 0.0,
-        max: 0.2,
-    }).on('change', (v) => { distortionScale = v; });
-    PANE.addInput({ 'polar coordinate': polar }, 'polar coordinate').on('change', (v) => { polar = v; });
-    PANE.addInput({ 'noise visible': noiseVisible }, 'noise visible').on('change', (v) => { noiseVisible = v; });
+    PANE.addInput({ 'use type1': noiseTypeOne }, 'use type1')
+        .on('change', (v) => { noiseTypeOne = v; });
 
+    PANE.addInput({ 'noise strength': noiseStrength }, 'noise strength', {
+        step: 0.01,
+        min: 0.0,
+        max: 1.0,
+    }).on('change', (v) => { noiseStrength = v; });
+
+    PANE.addInput({ 'vignette': vignetteScale }, 'vignette', {
+        step: 0.01,
+        min: 0.0,
+        max: 2.0,
+    }).on('change', (v) => { vignetteScale = v; });
+
+    PANE.addInput({ 'sin wave': sinWave }, 'sin wave', {
+        step: 1.0,
+        min: 1.0,
+        max: 1000.0,
+    }).on('change', (v) => { sinWave = v; });
+
+    PANE.addInput({ 'sin strength': sinStrength }, 'sin strength', {
+        step: 0.01,
+        min: 0.0,
+        max: 1.0,
+    }).on('change', (v) => { sinStrength = v; });
+
+    PANE.addInput({ 'background': backgroundColor }, 'background')
+        .on('change', (v) => {
+            backgroundColor = v;
+            const rgb = HEX2RGB(v);
+            if (rgb != null) {
+                const r = rgb.r / 255;
+                const g = rgb.g / 255;
+                const b = rgb.b / 255;
+                backgroundColorFloat = [r, g, b];
+            }
+        });
 
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
@@ -50,7 +78,6 @@ class WebGLFrame {
         this.mvpMatrix = glMatrix.mat4.create();
 
         this.texture = [];
-        this.framebuffer = [];
         this.deleteFunction = null;
     }
 
@@ -84,7 +111,7 @@ class WebGLFrame {
         this.uniLocation = null;
         this.uniType = null;
 
-        this.postProgram = null;
+        this.program = null;
         this.postAttLocation = null;
         this.postAttStride = null;
         this.postUniLocation = null;
@@ -99,73 +126,54 @@ class WebGLFrame {
                     const gl = this.gl;
                     const vs = this.createShader(shaders[0], gl.VERTEX_SHADER);
                     const fs = this.createShader(shaders[1], gl.FRAGMENT_SHADER);
-
                     this.program = this.createProgram(vs, fs);
-
-                    this.attLocation = [
+                    this.postAttLocation = [
                         gl.getAttribLocation(this.program, 'position'),
                         gl.getAttribLocation(this.program, 'texCoord'),
-                    ];
-                    this.attStride = [
-                        3,
-                        2,
-                    ];
-                    this.uniLocation = [
-                        gl.getUniformLocation(this.program, 'mvpMatrix'),
-                        gl.getUniformLocation(this.program, 'textureUnit'),
-                    ];
-                    this.uniType = [
-                        'uniformMatrix4fv',
-                        'uniform1i',
-                    ];
-
-                    return this.loadShader([
-                        './vs2.vert',
-                        './fs2.frag',
-                    ]);
-                })
-                .then((shaders) => {
-                    const gl = this.gl;
-                    const vs = this.createShader(shaders[0], gl.VERTEX_SHADER);
-                    const fs = this.createShader(shaders[1], gl.FRAGMENT_SHADER);
-                    this.postProgram = this.createProgram(vs, fs);
-                    this.postAttLocation = [
-                        gl.getAttribLocation(this.postProgram, 'position'),
-                        gl.getAttribLocation(this.postProgram, 'texCoord'),
                     ];
                     this.postAttStride = [
                         3,
                         2,
                     ];
                     this.postUniLocation = [
-                        gl.getUniformLocation(this.postProgram, 'renderedTexture'),
-                        gl.getUniformLocation(this.postProgram, 'noiseTexture'),
-                        gl.getUniformLocation(this.postProgram, 'time'),
-                        gl.getUniformLocation(this.postProgram, 'timeScale'),
-                        gl.getUniformLocation(this.postProgram, 'distortionScale'),
-                        gl.getUniformLocation(this.postProgram, 'polar'),
-                        gl.getUniformLocation(this.postProgram, 'noiseVisible'),
+                        gl.getUniformLocation(this.program, 'codeTextureUnit'),
+                        gl.getUniformLocation(this.program, 'noiseTextureUnit'),
+                        gl.getUniformLocation(this.program, 'noiseTypeOne'),
+                        gl.getUniformLocation(this.program, 'noiseStrength'),
+                        gl.getUniformLocation(this.program, 'vignetteScale'),
+                        gl.getUniformLocation(this.program, 'sinWave'),
+                        gl.getUniformLocation(this.program, 'sinStrength'),
+                        gl.getUniformLocation(this.program, 'time'),
+                        gl.getUniformLocation(this.program, 'background'),
+                        gl.getUniformLocation(this.program, 'mvpMatrix'),
                     ];
                     this.postUniType = [
                         'uniform1i',
                         'uniform1i',
-                        'uniform1f',
-                        'uniform1f',
-                        'uniform1f',
                         'uniform1i',
-                        'uniform1i',
+                        'uniform1f',
+                        'uniform1f',
+                        'uniform1f',
+                        'uniform1f',
+                        'uniform1f',
+                        'uniform3fv',
+                        'uniformMatrix4fv',
                     ];
-                    return this.createTextureFromFile('./image.jpg');
+                    return this.createTextureFromFile('./code2.png');
                 })
                 .then((texture) => {
                     this.texture[0] = texture;
                     return this.createTextureFromFile('./noise.png');
                 })
                 .then((texture) => {
+                    const gl = this.gl;
                     this.texture[1] = texture;
+                    this.texture.forEach((v, index) => {
+                        gl.activeTexture(gl.TEXTURE0 + index);
+                        gl.bindTexture(gl.TEXTURE_2D, v);
+                    })
                     resolve();
                 });
-
         });
     }
 
@@ -220,25 +228,11 @@ class WebGLFrame {
 
         const gl = this.gl;
 
-        window.addEventListener('resize', () => {
-            // プロパティに「フレームバッファ削除・再生成」の処理を記述した関数を代入 @@@
-            this.deleteFunction = () => {
-                this.framebuffer.forEach((v, index) => {
-                    // フレームバッファを削除するメソッドを実行
-                    this.deleteFrameBuffer(v);
-                    // リサイズ後のサイズを取得して、再度フレームバッファを生成する
-                    this.canvas.width = window.innerWidth;
-                    this.canvas.height = window.innerHeight;
-                    this.framebuffer[index] = this.createFramebuffer(this.canvas.width, this.canvas.height);
-                });
-            };
-        }, false);
-
         window.addEventListener('keydown', (evt) => {
             this.running = evt.key !== 'Escape';
         }, false);
 
-        this.camera.update();
+        //this.camera.update();
         this.canvas.addEventListener('mousedown', this.camera.startEvent, false);
         this.canvas.addEventListener('mousemove', this.camera.moveEvent, false);
         this.canvas.addEventListener('mouseup', this.camera.endEvent, false);
@@ -268,14 +262,10 @@ class WebGLFrame {
 
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
-        this.framebuffer[0] = this.createFramebuffer(this.canvas.width, this.canvas.height);
+
 
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.texture[0]);
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, this.texture[1]);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+        gl.clearColor(0.5, 0.5, 0.5, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
 
@@ -360,40 +350,23 @@ class WebGLFrame {
         glMatrix.mat4.multiply(this.vpMatrix, this.vpMatrix, quaternionMatrix);
         this.mvpMatrix = this.vpMatrix;
 
-        //framebuffer
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer[0].framebuffer);
         gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-        
-        gl.bindTexture(gl.TEXTURE_2D, this.texture[0]);
         gl.useProgram(this.program);
-
-        this.setAttribute(this.vbo, this.attLocation, this.attStride, this.ibo);
-
-        this.setUniform([
-            this.mvpMatrix,
-            0,
-        ], this.uniLocation, this.uniType);
-
-        gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        gl.bindTexture(gl.TEXTURE_2D, this.framebuffer[0].texture);
-        gl.useProgram(this.postProgram);
 
         this.setAttribute(this.vbo, this.postAttLocation, this.postAttStride, this.ibo);
 
         this.setUniform([
             0,
             1,
+            noiseTypeOne,
+            noiseStrength,
+            vignetteScale,
+            sinWave,
+            sinStrength,
             this.nowTime,
-            timeScale,
-            distortionScale,
-            polar,
-            noiseVisible,
+            backgroundColorFloat,
+            this.mvpMatrix,
         ], this.postUniLocation, this.postUniType);
 
         gl.drawElements(gl.TRIANGLES, this.index.length, gl.UNSIGNED_SHORT, 0);
@@ -520,7 +493,7 @@ class InteractionCamera {
         this.rotateAxis = [0.0, 0.0, 0.0];
         this.rotatePower = 2.0;
         this.rotateAttenuation = 0.9;
-        this.scale = 1.0;
+        this.scale = 0.3;
         this.scalePower = 0.0;
         this.scaleAtternuation = 0.8;
         this.scaleMin = 0.25;
