@@ -42,20 +42,23 @@ void main() {
     n = 1.0 - n * noiseStrength;
 
     //rain
-    float coordX = gl_FragCoord.x - mod(gl_FragCoord.x, 32.0);
+    float coordX = gl_FragCoord.x - mod(gl_FragCoord.x, 13.0);
     float speed = cos(coordX * 3.0) * 0.3 + 0.7;
-    float y = fract(vTexCoord.y + time * speed * 1.2);
-    vec3 matrixColor = background / (y * 20.0);
+    float y = fract(vTexCoord.y + time * speed);
+    vec3 matrixColor = background / (y * 50.0);
 
     //code
-    vec2 uv = mod(gl_FragCoord.xy, 32.0) * 0.0625;
+    vec2 uv = mod(gl_FragCoord.xy, 13.0) / 13.0;
     //1ブロックを計算
-    vec2 block = gl_FragCoord.xy * 0.0625 - uv;
+    vec2 block = gl_FragCoord.xy / 13.0 - uv;
+    vec2 resizedUV = uv * 0.8 + 0.1;
     //ノイズ画像をピクセルで取得
-    vec4 squreUV = texture2D(noiseTextureUnit, block / vec2(234, 121) + time * 0.002);
-    vec2 randomBlock = floor(squreUV.xy * 32.) / 32.;
-    //r成分を無くして
-    vec4 codeText = texture2D(codeTextureUnit, vec2(-randomBlock.x, randomBlock.y));
+    vec2 squreUV = resizedUV + floor(texture2D(noiseTextureUnit, block / vec2(234, 121) + time * 0.002).xy * 16.0);
+    vec2 randomBlock = squreUV / 13.0;
+    vec2 texCoord = vec2(randomBlock.x, randomBlock.y);
+    //文字を取り出す
+    vec2 codeText = texture2D(codeTextureUnit, texCoord).xy;
 
-    gl_FragColor = vec4(codeText.xy, 0.0, 1.0);
+
+    gl_FragColor = vec4(matrixColor * codeText.r, 1.0);
 }

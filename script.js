@@ -159,7 +159,7 @@ class WebGLFrame {
                         'uniform3fv',
                         'uniformMatrix4fv',
                     ];
-                    return this.createTextureFromFile('./code2.png');
+                    return this.createTextureFromFile('./code.png');
                 })
                 .then((texture) => {
                     this.texture[0] = texture;
