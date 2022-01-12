@@ -57,8 +57,8 @@ void main() {
     //1ブロックを計算
     vec2 block = gl_FragCoord.xy / unitWidth - uv;
     vec2 resizedUV = uv * 0.8 + 0.1;
-    //ノイズ画像をピクセルで取得
-    vec2 squreUV = resizedUV + floor(texture2D(noiseTextureUnit, block / vec2(234, 121) + time * 0.002).xy * unitWidth);
+    //ノイズ画像をピクセルで取得、円状に辿る
+    vec2 squreUV = resizedUV + floor(texture2D(noiseTextureUnit, block / vec2(234, 121) + 0.01*sin(time)+0.1).xy * unitWidth);
     vec2 randomBlock = squreUV / unitWidth;
     vec2 texCoord = vec2(randomBlock.x, randomBlock.y);
     //文字を取り出す
@@ -69,6 +69,6 @@ void main() {
     float dist = sigDist * dot(vec2(unitWidth, unitWidth), 0.5 / fwidth(texCoord));
     float opacity = clamp(dist + 0.5, 0.0, 1.0);
 
-    //gl_FragColor = vec4(matrixColor , 1.0);
+    //gl_FragColor = vec4(codeText);
     gl_FragColor = vec4(matrixColor * opacity * vig * wave * n, 1.0);
 }
