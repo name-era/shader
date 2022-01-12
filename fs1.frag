@@ -10,6 +10,7 @@ uniform float time;
 uniform vec3 background;
 
 varying vec2 vTexCoord;
+const float weight = 0.8;
 
 //乱数生成1
 float rnd(vec2 p) {
@@ -24,6 +25,10 @@ float rnd2(vec2 n) {
     float dt = dot(n, vec2(a, b));
     float sn = mod(dt, 3.14);
     return fract(sin(sn) * c);
+}
+
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
 }
 
 void main() {
@@ -42,23 +47,26 @@ void main() {
     n = 1.0 - n * noiseStrength;
 
     //rain
-    float coordX = gl_FragCoord.x - mod(gl_FragCoord.x, 13.0);
+    float coordX = gl_FragCoord.x - mod(gl_FragCoord.x, 32.0);
     float speed = cos(coordX * 3.0) * 0.3 + 0.7;
     float y = fract(vTexCoord.y + time * speed);
-    vec3 matrixColor = background / (y * 50.0);
+    vec3 matrixColor = background / (y * 20.0);
 
     //code
-    vec2 uv = mod(gl_FragCoord.xy, 13.0) / 13.0;
+    vec2 uv = mod(gl_FragCoord.xy, 32.0) / 32.0;
     //1ブロックを計算
-    vec2 block = gl_FragCoord.xy / 13.0 - uv;
+    vec2 block = gl_FragCoord.xy / 32.0 - uv;
     vec2 resizedUV = uv * 0.8 + 0.1;
     //ノイズ画像をピクセルで取得
-    vec2 squreUV = resizedUV + floor(texture2D(noiseTextureUnit, block / vec2(234, 121) + time * 0.002).xy * 16.0);
-    vec2 randomBlock = squreUV / 13.0;
+    vec2 squreUV = resizedUV + floor(texture2D(noiseTextureUnit, block / vec2(234, 121) + time * 0.002).xy * 32.0);
+    vec2 randomBlock = squreUV / 32.0;
     vec2 texCoord = vec2(randomBlock.x, randomBlock.y);
     //文字を取り出す
-    vec2 codeText = texture2D(codeTextureUnit, texCoord).xy;
+    vec4 codeText = texture2D(codeTextureUnit, texCoord);
 
-
-    gl_FragColor = vec4(matrixColor * codeText.r, 1.0);
+    //msdf
+    float sigDist = median(codeText.r, codeText.g, codeText.b) - 0.5;
+    float opacity = clamp(sigDist + 0.5, 0.0, 1.0);
+    
+    gl_FragColor = vec4(matrixColor * opacity * vig * wave * n, 1.0);
 }
