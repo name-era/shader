@@ -48,9 +48,9 @@ void main() {
 
     //rain
     float coordX = gl_FragCoord.x - mod(gl_FragCoord.x, unitWidth);
-    float speed = cos(coordX * 3.0) * 0.3 + 0.7;
-    float y = fract(vTexCoord.y + time * speed);
-    vec3 matrixColor = background / (y * 20.0);
+    float speed = cos(coordX * 30.0) * 0.3 + 0.7;
+    float y = fract(vTexCoord.y + time * speed / 1.5);
+    vec3 matrixColor = background / (y * 15.0);
 
     //code
     vec2 uv = mod(gl_FragCoord.xy, unitWidth) / unitWidth;
@@ -69,6 +69,6 @@ void main() {
     float dist = sigDist * dot(vec2(unitWidth, unitWidth), 0.5 / fwidth(texCoord));
     float opacity = clamp(dist + 0.5, 0.0, 1.0);
 
-    gl_FragColor = vec4(matrixColor * opacity, 1.0);
-    //gl_FragColor = vec4(matrixColor * opacity * vig * wave * n, 1.0);
+    //gl_FragColor = vec4(matrixColor , 1.0);
+    gl_FragColor = vec4(matrixColor * opacity * vig * wave * n, 1.0);
 }
