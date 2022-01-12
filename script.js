@@ -66,7 +66,7 @@ class WebGLFrame {
         this.gl = null;
         this.running = false;
         this.beginTime = 0;
-        this.nowTime = 0;
+        this.time = 0;
         this.render = this.render.bind(this);
 
         this.camera = new InteractionCamera();
@@ -101,6 +101,10 @@ class WebGLFrame {
         this.gl = this.canvas.getContext('webgl');
         if (this.gl == null) {
             throw new Error('webgl not supported');
+        }
+        if(!this.gl.getExtension('OES_standard_derivatives')){
+            console.log('OES_standard_derivatives is not supported');
+            return;
         }
     }
 
@@ -265,7 +269,7 @@ class WebGLFrame {
 
 
         gl.activeTexture(gl.TEXTURE0);
-        gl.clearColor(0.5, 0.5, 0.5, 1.0);
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
 
@@ -324,7 +328,11 @@ class WebGLFrame {
             }
         }
 
-        this.nowTime = (Date.now() - this.beginTime) / 1000;
+        this.time = (Date.now() - this.beginTime) / 1000;
+        if (this.time > 15.0) {
+            this.time -= 10.0;
+        }
+
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
 
@@ -364,7 +372,7 @@ class WebGLFrame {
             vignetteScale,
             sinWave,
             sinStrength,
-            this.nowTime,
+            this.time,
             backgroundColorFloat,
             this.mvpMatrix,
         ], this.postUniLocation, this.postUniType);
