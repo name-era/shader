@@ -68,5 +68,5 @@ void main() {
     float sigDist = median(codeText.r, codeText.g, codeText.b) - 0.5;
     float opacity = clamp(sigDist + 0.5, 0.0, 1.0);
     
-    gl_FragColor = vec4(matrixColor * median(codeText.r, codeText.g, codeText.b) * vig * wave * n, 1.0);
+    gl_FragColor = vec4(matrixColor * opacity * vig * wave * n, 1.0);
 }
