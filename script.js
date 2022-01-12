@@ -285,9 +285,6 @@ class WebGLFrame {
         }
 
         this.time = (Date.now() - this.beginTime) / 1000;
-        if (this.time > 15.0) {
-            this.time -= 10.0;
-        }
 
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
