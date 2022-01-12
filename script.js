@@ -1,56 +1,12 @@
-let noiseTypeOne = false;         // 乱数生成器がタイプ１かどうか
-let noiseStrength = 0.5;         // ノイズの合成強度
-let vignetteScale = 1.5;         // ヴィネット係数
-let sinWave = 300.0;             // サイン波の周波数係数 @@@
-let sinStrength = 0.5;           // サイン波の合成強度 @@@
-let backgroundColor = '#00ff00'; // 背景色 @@@
-let backgroundColorFloat = [0.1, 1.0, .035];
+let noiseTypeOne = false;        
+let noiseStrength = 0.5;         
+let vignetteScale = 1.5;       
+let sinWave = 300.0;            
+let sinStrength = 0.5;           
+let backgroundColor = '#000000'; 
+let backgroundColorFloat = [0.0, 0.60, 0.10];
 
 window.addEventListener('DOMContentLoaded', () => {
-
-    const PANE = new Tweakpane({
-        container: document.querySelector('#pane'),
-    });
-
-    PANE.addInput({ 'use type1': noiseTypeOne }, 'use type1')
-        .on('change', (v) => { noiseTypeOne = v; });
-
-    PANE.addInput({ 'noise strength': noiseStrength }, 'noise strength', {
-        step: 0.01,
-        min: 0.0,
-        max: 1.0,
-    }).on('change', (v) => { noiseStrength = v; });
-
-    PANE.addInput({ 'vignette': vignetteScale }, 'vignette', {
-        step: 0.01,
-        min: 0.0,
-        max: 2.0,
-    }).on('change', (v) => { vignetteScale = v; });
-
-    PANE.addInput({ 'sin wave': sinWave }, 'sin wave', {
-        step: 1.0,
-        min: 1.0,
-        max: 1000.0,
-    }).on('change', (v) => { sinWave = v; });
-
-    PANE.addInput({ 'sin strength': sinStrength }, 'sin strength', {
-        step: 0.01,
-        min: 0.0,
-        max: 1.0,
-    }).on('change', (v) => { sinStrength = v; });
-
-    PANE.addInput({ 'background': backgroundColor }, 'background')
-        .on('change', (v) => {
-            backgroundColor = v;
-            const rgb = HEX2RGB(v);
-            if (rgb != null) {
-                const r = rgb.r / 255;
-                const g = rgb.g / 255;
-                const b = rgb.b / 255;
-                backgroundColorFloat = [r, g, b];
-            }
-        });
-
     const webgl = new WebGLFrame();
     webgl.init('webgl-canvas');
     webgl.load().then(() => {
@@ -66,7 +22,7 @@ class WebGLFrame {
         this.gl = null;
         this.running = false;
         this.beginTime = 0;
-        this.nowTime = 0;
+        this.time = 0;
         this.render = this.render.bind(this);
 
         this.camera = new InteractionCamera();
@@ -101,6 +57,10 @@ class WebGLFrame {
         this.gl = this.canvas.getContext('webgl');
         if (this.gl == null) {
             throw new Error('webgl not supported');
+        }
+        if(!this.gl.getExtension('OES_standard_derivatives')){
+            console.log('OES_standard_derivatives is not supported');
+            return;
         }
     }
 
@@ -265,7 +225,7 @@ class WebGLFrame {
 
 
         gl.activeTexture(gl.TEXTURE0);
-        gl.clearColor(0.5, 0.5, 0.5, 1.0);
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
         gl.enable(gl.DEPTH_TEST);
 
@@ -324,7 +284,11 @@ class WebGLFrame {
             }
         }
 
-        this.nowTime = (Date.now() - this.beginTime) / 1000;
+        this.time = (Date.now() - this.beginTime) / 1000;
+        if (this.time > 15.0) {
+            this.time -= 10.0;
+        }
+
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
 
@@ -343,7 +307,7 @@ class WebGLFrame {
         glMatrix.mat4.perspective(this.pMatrix, fovy, aspect, near, far);
         glMatrix.mat4.multiply(this.vpMatrix, this.pMatrix, this.vMatrix);
 
-        this.camera.update();
+        //this.camera.update();
         let quaternionMatrix = glMatrix.mat4.create();
         glMatrix.mat4.fromQuat(quaternionMatrix, this.camera.qtn);
 
@@ -364,7 +328,7 @@ class WebGLFrame {
             vignetteScale,
             sinWave,
             sinStrength,
-            this.nowTime,
+            this.time,
             backgroundColorFloat,
             this.mvpMatrix,
         ], this.postUniLocation, this.postUniType);

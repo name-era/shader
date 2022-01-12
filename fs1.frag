@@ -1,3 +1,4 @@
+#extension GL_OES_standard_derivatives : enable
 precision mediump float;
 uniform sampler2D codeTextureUnit;
 uniform sampler2D noiseTextureUnit;
@@ -10,8 +11,7 @@ uniform float time;
 uniform vec3 background;
 
 varying vec2 vTexCoord;
-const float weight = 0.8;
-
+const float unitWidth = 32.0;
 //乱数生成1
 float rnd(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
@@ -47,26 +47,28 @@ void main() {
     n = 1.0 - n * noiseStrength;
 
     //rain
-    float coordX = gl_FragCoord.x - mod(gl_FragCoord.x, 32.0);
-    float speed = cos(coordX * 3.0) * 0.3 + 0.7;
-    float y = fract(vTexCoord.y + time * speed);
-    vec3 matrixColor = background / (y * 20.0);
+    float coordX = gl_FragCoord.x - mod(gl_FragCoord.x, unitWidth);
+    float speed = cos(coordX * 30.0) * 0.3 + 0.7;
+    float y = fract(vTexCoord.y + time * speed / 1.5);
+    vec3 matrixColor = background / (y * 15.0);
 
     //code
-    vec2 uv = mod(gl_FragCoord.xy, 32.0) / 32.0;
+    vec2 uv = mod(gl_FragCoord.xy, unitWidth) / unitWidth;
     //1ブロックを計算
-    vec2 block = gl_FragCoord.xy / 32.0 - uv;
+    vec2 block = gl_FragCoord.xy / unitWidth - uv;
     vec2 resizedUV = uv * 0.8 + 0.1;
     //ノイズ画像をピクセルで取得
-    vec2 squreUV = resizedUV + floor(texture2D(noiseTextureUnit, block / vec2(234, 121) + time * 0.002).xy * 32.0);
-    vec2 randomBlock = squreUV / 32.0;
+    vec2 squreUV = resizedUV + floor(texture2D(noiseTextureUnit, block / vec2(234, 121) + time * 0.002).xy * unitWidth);
+    vec2 randomBlock = squreUV / unitWidth;
     vec2 texCoord = vec2(randomBlock.x, randomBlock.y);
     //文字を取り出す
     vec4 codeText = texture2D(codeTextureUnit, texCoord);
 
     //msdf
     float sigDist = median(codeText.r, codeText.g, codeText.b) - 0.5;
-    float opacity = clamp(sigDist + 0.5, 0.0, 1.0);
-    
+    float dist = sigDist * dot(vec2(unitWidth, unitWidth), 0.5 / fwidth(texCoord));
+    float opacity = clamp(dist + 0.5, 0.0, 1.0);
+
+    //gl_FragColor = vec4(matrixColor , 1.0);
     gl_FragColor = vec4(matrixColor * opacity * vig * wave * n, 1.0);
 }
